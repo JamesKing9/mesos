@@ -3622,6 +3622,7 @@ Future<Response> get(const UPID& upid, const string& path, const string& query)
 
   Try<Nothing> cloexec = os::cloexec(s);
   if (!cloexec.isSome()) {
+    os::close(s);
     return Future<Response>::failed("Failed to cloexec: " + cloexec.error());
   }
 
