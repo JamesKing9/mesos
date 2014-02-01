@@ -219,14 +219,23 @@ public:
       std::cout << "Killing process tree at pid " << pid << std::endl;
 
       Try<std::list<os::ProcessTree> > trees =
-        os::killtree(pid, SIGKILL, true, true);
+        os::killtree(pid, SIGTERM, true, true);
 
       if (trees.isError()) {
-        std::cerr << "Failed to kill the process tree rooted at pid "
-                  << pid << ": " << trees.error() << std::endl;
+        os::sleep(Seconds(5));
+
+        trees = os::killtree(pid, SIGKILL, true, true);
+
+        if (trees.isError()) {
+          std::cerr << "Failed to kill the process tree rooted at pid "
+            << pid << ": " << trees.error() << std::endl;
+        } else {
+          std::cout << "Killed the following process trees with SIGKILL:\n"
+            << stringify(trees.get()) << std::endl;
+        }
       } else {
-        std::cout << "Killed the following process trees:\n"
-                  << stringify(trees.get()) << std::endl;
+        std::cout << "Killed the following process trees with SIGTERM:\n"
+          << stringify(trees.get()) << std::endl;
       }
 
       killed = true;
