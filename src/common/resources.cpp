@@ -62,7 +62,11 @@ bool matches(const Resource& left, const Resource& right)
 {
   return left.name() == right.name() &&
     left.type() == right.type() &&
-    left.role() == right.role();
+    (
+     left.role() == right.role() ||
+     (left.role() == "*" && right.role().empty()) ||
+     (left.role().empty() && right.role() == "*")
+    );
 }
 
 
@@ -208,7 +212,9 @@ Resources Resources::extract(const string& role) const
   Resources r;
 
   foreach (const Resource& resource, resources) {
-    if (resource.role() == role) {
+    if (resource.role() == role ||
+        (role == "*" && (!resource.has_role() || resource.role().empty()))
+        ) {
       r += resource;
     }
   }
