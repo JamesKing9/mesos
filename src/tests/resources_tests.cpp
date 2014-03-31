@@ -272,6 +272,57 @@ TEST(ResourcesTest, ScalarSubset2)
 }
 
 
+TEST(ResourcesTest, ScalarSubset3)
+{
+  Resource cpus1 = Resources::parse("cpus",     "1", "role1").get();
+  Resource mem1  = Resources::parse("mem",   "1024", "role1").get();
+  Resource disk1 = Resources::parse("disk", "10240", "*").get();
+
+  Resource cpus2 = Resources::parse("cpus",      "4", "role1").get();
+  Resource mem2  = Resources::parse("mem",    "4096", "role1").get();
+  Resource disk2 = Resources::parse("disk", "675245", "*").get();
+
+  Resources r1;
+  r1 += cpus1;
+
+  Resources r2;
+  r2 += cpus2;
+  r2 += mem2;
+  r2 += disk2;
+
+  EXPECT_TRUE(cpus1 <= cpus2);
+
+  EXPECT_TRUE(r1 <= r2);
+}
+
+TEST(ResourcesTest, ScalarSubset4)
+{
+  Resource cpus1 = Resources::parse("cpus",     "2", "role1").get();
+  Resource mem1  = Resources::parse("mem",   "1024", "role1").get();
+  Resource disk1 = Resources::parse("disk", "10240", "*").get();
+
+  Resource cpus2_1 = Resources::parse("cpus",      "1", "*").get();
+  Resource cpus2_2 = Resources::parse("cpus",      "4", "role1").get();
+  Resource mem2_1  = Resources::parse("mem",    "1024", "*").get();
+  Resource mem2_2  = Resources::parse("mem",    "4096", "role1").get();
+  Resource disk2   = Resources::parse("disk", "675245", "*").get();
+
+  Resources r1;
+  r1 += cpus1;
+
+  Resources r2;
+  r2 += cpus2_1;
+  r2 += cpus2_2;
+  r2 += mem2_1;
+  r2 += mem2_2;
+  r2 += disk2;
+
+  EXPECT_TRUE(cpus1 <= cpus2_2);
+  EXPECT_FALSE(cpus1 <= cpus2_1);
+
+  EXPECT_TRUE(r1 <= r2);
+}
+
 TEST(ResourcesTest, ScalarAddition)
 {
   Resource cpus1 = Resources::parse("cpus", "1", "*").get();
@@ -315,9 +366,9 @@ TEST(ResourcesTest, ScalarAddition2)
   r2 += cpus3;
 
   Resources sum = r1 + r2;
-  EXPECT_EQ(2u, sum.size());
-  EXPECT_EQ(9, sum.cpus().get());
-  EXPECT_EQ(sum, Resources::parse("cpus(role1):6;cpus(role2):3").get());
+  EXPECT_EQ(3u, sum.size());
+  EXPECT_EQ(14, sum.cpus().get());
+  EXPECT_EQ(sum, Resources::parse("cpus(*):5;cpus(role1):6;cpus(role2):3").get());
 }
 
 
@@ -769,4 +820,32 @@ TEST(ResourcesTest, Find)
   Resources toFind4 = Resources::parse("cpus:2;mem:2").get();
 
   EXPECT_NONE(resources4.find(toFind1, "role1"));
+}
+
+TEST(ResourcesTest, Extract)
+{
+  EXPECT_EQ(
+      Resources::parse("cpus(role1):2;mem(role1):10;cpus:4;mem:20").get().extract("*"),
+      Resources::parse("cpus(role1):2;mem(role1):10;cpus:4;mem:20").get().extract("*")
+  );
+  EXPECT_NE(
+      Resources::parse("cpus(role1):2;mem(role1):10;cpus:4;mem:20").get().extract("*"),
+      Resources::parse("cpus(role1):2;mem(role1):10;cpus:4;mem:20").get()
+  );
+  EXPECT_EQ(
+      Resources::parse("cpus:4;mem:20").get().extract("*"),
+      Resources::parse("cpus:4;mem:20").get()
+  );
+  EXPECT_EQ(
+      Resources::parse("cpus(role1):2;mem(role1):10;cpus:4;mem:20").get().extract("*"),
+      Resources::parse("cpus:4;mem:20").get()
+  );
+  EXPECT_NE(
+      Resources::parse("cpus(role1):2;mem(role1):10").get().extract("*"),
+      Resources::parse("cpus:4;mem:20").get()
+  );
+  EXPECT_EQ(
+      Resources::parse("cpus(*):30; mem(*):54200; disk(*):118784; ports(*):[31465-31465, 31982-31982]").get(),
+      Resources::parse("cpus(*):30; mem(*):54200; disk(*):118784; ports(*):[31465-31465, 31982-31982]").get().extract("*")
+  );
 }

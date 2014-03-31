@@ -1914,6 +1914,8 @@ struct UniqueTaskIDChecker : TaskInfoVisitor
 // offered on that slave
 struct ResourceUsageChecker : TaskInfoVisitor
 {
+  ResourceUsageChecker(Master *master) : master(master) {}
+
   virtual TaskInfoError operator () (
       const TaskInfo& task,
       Offer* offer,
@@ -1933,13 +1935,46 @@ struct ResourceUsageChecker : TaskInfoVisitor
 
     // Check if this task uses more resources than offered.
     Resources taskResources = task.resources();
+    Resources offeredResources = offer->resources();
+    list<Task*> tasksToKill;
 
-    if (!((usedResources + taskResources) <= offer->resources())) {
-      return TaskInfoError::some(
-          "Task " + stringify(task.task_id()) + " attempted to use " +
-          stringify(taskResources) + " combined with already used " +
-          stringify(usedResources) + " is greater than offered " +
-          stringify(offer->resources()));
+    if (!((usedResources + taskResources) <= offeredResources)) {
+      if (taskResources == taskResources.extract("*")) {
+        // This task doesn't use reservations.
+        return TaskInfoError::some(
+            "1: Task " + stringify(task.task_id()) + " attempted to use " +
+            stringify(taskResources) + " combined with already used " +
+            stringify(usedResources) + " is greater than offered " +
+            stringify(offeredResources));
+      } else {
+        LOG(INFO) << "taskResources: " << taskResources
+          << " taskResources.extract(\"*\"): " << taskResources.extract("*");
+        // Start killing tasks (preempt) from default role.
+        Resources unreserved;
+        bool stop = false;
+        foreach (const FrameworkID& frameworkId, slave->tasks.keys()) {
+          foreach (Task* _task, slave->tasks[frameworkId].values()) {
+            if (_task->task_id() == task.task_id()) continue;
+            if (Resources(_task->resources()) == Resources(_task->resources()).extract("*")) {
+              unreserved += _task->resources();
+              tasksToKill.push_back(_task);
+              if ((usedResources + taskResources) <= (offeredResources + unreserved)) {
+                stop = true;
+                break;
+              }
+            }
+          }
+          if (stop) break;
+        }
+        if (!((usedResources + taskResources) <= (offeredResources + unreserved))) {
+          return TaskInfoError::some(
+              "2: Task " + stringify(task.task_id()) + " attempted to use " +
+              stringify(taskResources) + " combined with already used " +
+              stringify(usedResources - unreserved) + " is greater than offered " +
+              stringify(offeredResources));
+        }
+        offeredResources += unreserved;
+      }
     }
 
     // Check this task's executor's resources.
@@ -1960,16 +1995,56 @@ struct ResourceUsageChecker : TaskInfoVisitor
       if (!executors.contains(task.executor().executor_id())) {
         if (!slave->hasExecutor(framework->id, task.executor().executor_id())) {
           taskResources += task.executor().resources();
-          if (!((usedResources + taskResources) <= offer->resources())) {
-            return TaskInfoError::some(
-                "Task " + stringify(task.task_id()) + " + executor attempted" +
-                " to use " + stringify(taskResources) + " combined with" +
-                " already used " + stringify(usedResources) + " is greater" +
-                " than offered " + stringify(offer->resources()));
+          if (!((usedResources + taskResources) <= offeredResources)) {
+            if (taskResources == taskResources.extract("*")) {
+              return TaskInfoError::some(
+                  "3: Task " + stringify(task.task_id()) + " + executor attempted" +
+                  " to use " + stringify(taskResources) + " combined with" +
+                  " already used " + stringify(usedResources) + " is greater" +
+                  " than offered " + stringify(offeredResources));
+            } else {
+              LOG(INFO) << "taskResources: " << taskResources
+                << " taskResources.extract(\"*\"): " << taskResources.extract("*");
+              // Start killing tasks (preempt) from default role.
+              Resources unreserved;
+              bool stop = false;
+              foreach (const FrameworkID& frameworkId, slave->tasks.keys()) {
+                foreach (Task* _task, slave->tasks[frameworkId].values()) {
+                  if (_task->task_id() == task.task_id()) continue;
+                  if (Resources(_task->resources()) == Resources(_task->resources()).extract("*")) {
+                    unreserved += _task->resources();
+                    tasksToKill.push_back(_task);
+                    if ((usedResources + taskResources) <= (offeredResources + unreserved)) {
+                      stop = true;
+                      break;
+                    }
+                  }
+                }
+                if (stop) break;
+              }
+              if (!((usedResources + taskResources) <= (offeredResources + unreserved))) {
+                return TaskInfoError::some(
+                    "4: Task " + stringify(task.task_id()) + " attempted to use " +
+                    stringify(taskResources) + " combined with already used " +
+                    stringify(usedResources - unreserved) + " is greater than offered " +
+                    stringify(offeredResources));
+              }
+              offeredResources += unreserved;
+            }
           }
         }
         executors.insert(task.executor().executor_id());
       }
+    }
+
+    foreach (Task *_task, tasksToKill) {
+      LOG(INFO) << "Preempting task " << _task->task_id()
+        << " of framework " << _task->framework_id()
+        << " with resources " << _task->resources() << " on slave "
+        << slave->id << " (" << slave->info.hostname() << ")"
+        << " in order to free resources for task " << task.task_id()
+        << " which requires " << task.resources();
+      master->killTask(_task->framework_id(), _task->task_id());
     }
 
     usedResources += taskResources;
@@ -1977,6 +2052,7 @@ struct ResourceUsageChecker : TaskInfoVisitor
     return TaskInfoError::none();
   }
 
+  Master *master;
   Resources usedResources;
   hashset<ExecutorID> executors;
 };
@@ -2068,7 +2144,7 @@ void Master::processTasks(Offer* offer,
   list<TaskInfoVisitor*> visitors;
   visitors.push_back(new SlaveIDChecker());
   visitors.push_back(new UniqueTaskIDChecker());
-  visitors.push_back(new ResourceUsageChecker());
+  visitors.push_back(new ResourceUsageChecker(this));
   visitors.push_back(new ExecutorInfoChecker());
   visitors.push_back(new CheckpointChecker());
 
