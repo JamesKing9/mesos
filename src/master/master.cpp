@@ -1966,7 +1966,8 @@ struct ResourceUsageChecker : TaskInfoVisitor
           }
           if (stop) break;
         }
-        if (!((usedResources + taskResources) <= (offeredResources + unreserved))) {
+        if ((usedResources - unreserved).size() > 0 &&
+           !((usedResources + taskResources) <= (offeredResources + unreserved))) {
           return TaskInfoError::some(
               "2: Task " + stringify(task.task_id()) + " attempted to use " +
               stringify(taskResources) + " combined with already used " +
@@ -2022,7 +2023,8 @@ struct ResourceUsageChecker : TaskInfoVisitor
                 }
                 if (stop) break;
               }
-              if (!((usedResources + taskResources) <= (offeredResources + unreserved))) {
+              if ((usedResources - unreserved).size() > 0 &&
+                 !((usedResources + taskResources) <= (offeredResources + unreserved))) {
                 return TaskInfoError::some(
                     "4: Task " + stringify(task.task_id()) + " attempted to use " +
                     stringify(taskResources) + " combined with already used " +
