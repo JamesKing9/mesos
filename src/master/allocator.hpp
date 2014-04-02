@@ -105,7 +105,8 @@ public:
   virtual void resourcesUnused(
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
-      const Resources& resources,
+      const Resources& unusedResources,
+      const Resources& usedResources,
       const Option<Filters>& filters) = 0;
 
   // Whenever resources are "recovered" in the cluster (e.g., a task
@@ -180,7 +181,8 @@ public:
   void resourcesUnused(
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
-      const Resources& resources,
+      const Resources& unusedResources,
+      const Resources& usedResources,
       const Option<Filters>& filters);
 
   void resourcesRecovered(
@@ -339,7 +341,8 @@ inline void Allocator::resourcesRequested(
 inline void Allocator::resourcesUnused(
     const FrameworkID& frameworkId,
     const SlaveID& slaveId,
-    const Resources& resources,
+    const Resources& unusedResources,
+    const Resources& usedResources,
     const Option<Filters>& filters)
 {
   process::dispatch(
@@ -347,7 +350,8 @@ inline void Allocator::resourcesUnused(
       &AllocatorProcess::resourcesUnused,
       frameworkId,
       slaveId,
-      resources,
+      unusedResources,
+      usedResources,
       filters);
 }
 
