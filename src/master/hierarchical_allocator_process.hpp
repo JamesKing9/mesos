@@ -162,6 +162,7 @@ public:
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
       const Resources& resources,
+      const Resources& usedResources,
       const Option<Filters>& filters);
 
   void resourcesRecovered(
@@ -430,14 +431,26 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::slaveAdded(
   foreachpair (const FrameworkID& frameworkId,
                const Resources& resources,
                used) {
-    if (frameworks.contains(frameworkId)) {
-      const std::string& role = frameworks[frameworkId].role();
-      sorters[role]->add(resources);
-      sorters[role]->allocated(frameworkId.value(), resources);
-      roleSorter->allocated(role, resources);
+    Resources usedResources = resources;
+
+    // Update the total used resources to exclude reserved resources from
+    // unreserved resources.
+    foreach (const Resource &resource, resources) {
+      if (resource.has_role() && resource.role() != "*") {
+        Resource unreserved(resource);
+        unreserved.set_role("*");
+        usedResources += unreserved;
+      }
     }
 
-    unused -= resources; // Only want to allocate resources that are not used!
+    if (frameworks.contains(frameworkId)) {
+      const std::string& role = frameworks[frameworkId].role();
+      sorters[role]->add(usedResources);
+      sorters[role]->allocated(frameworkId.value(), usedResources);
+      roleSorter->allocated(role, usedResources);
+    }
+
+    unused -= usedResources; // Only want to allocate resources that are not used!
   }
 
   slaves[slaveId].available = unused;
@@ -535,17 +548,18 @@ void
 HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesUnused(
     const FrameworkID& frameworkId,
     const SlaveID& slaveId,
-    const Resources& resources,
+    const Resources& unusedResources,
+    const Resources& usedResources,
     const Option<Filters>& filters)
 {
   CHECK(initialized);
 
-  if (resources.allocatable().size() == 0) {
+  if (unusedResources.allocatable().size() == 0) {
     return;
   }
 
   VLOG(1) << "Framework " << frameworkId
-          << " left " << resources.allocatable()
+          << " left " << unusedResources.allocatable()
           << " unused on slave " << slaveId;
 
   // Update resources allocated to framework. It is
@@ -556,13 +570,24 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesUnused(
   CHECK(frameworks.contains(frameworkId));
 
   const std::string& role = frameworks[frameworkId].role();
-  sorters[role]->unallocated(frameworkId.value(), resources);
-  sorters[role]->remove(resources);
-  roleSorter->unallocated(role, resources);
+
+  sorters[role]->unallocated(frameworkId.value(), unusedResources);
+  sorters[role]->remove(unusedResources);
+  roleSorter->unallocated(role, unusedResources);
 
   // Update resources allocatable on slave.
   CHECK(slaves.contains(slaveId));
-  slaves[slaveId].available += resources;
+  slaves[slaveId].available += unusedResources;
+
+  // For tasks that use reserved resources, we must update the unreserved
+  // resources to reflect that these resources are no longer available.
+  foreach (const Resource &resource, usedResources) {
+    if (resource.has_role() && resource.role() != "*") {
+      Resource r(resource);
+      r.set_role("*");
+      slaves[slaveId].available -= r;
+    }
+  }
 
   // Create a refused resources filter.
   Try<Duration> seconds_ = Duration::create(Filters().refuse_seconds());
@@ -593,7 +618,7 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesUnused(
 
     // Create a new filter and delay it's expiration.
     Filter* filter =
-      new RefusedFilter(slaveId, resources, Timeout::in(seconds));
+      new RefusedFilter(slaveId, unusedResources, Timeout::in(seconds));
 
     frameworks[frameworkId].filters.insert(filter);
 
@@ -615,6 +640,8 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
     return;
   }
 
+  Resources recoveredResources = resources;
+
   // Updated resources allocated to framework (if framework still
   // exists, which it might not in the event that we dispatched
   // Master::offer before we received AllocatorProcess::frameworkRemoved
@@ -623,18 +650,26 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
   if (frameworks.contains(frameworkId) &&
       sorters[frameworks[frameworkId].role()]->contains(frameworkId.value())) {
     const std::string& role = frameworks[frameworkId].role();
-    sorters[role]->unallocated(frameworkId.value(), resources);
-    sorters[role]->remove(resources);
-    roleSorter->unallocated(role, resources);
+    sorters[role]->unallocated(frameworkId.value(), recoveredResources);
+    sorters[role]->remove(recoveredResources);
+    roleSorter->unallocated(role, recoveredResources);
   }
 
   // Update resources allocatable on slave (if slave still exists,
   // which it might not in the event that we dispatched Master::offer
   // before we received Allocator::slaveRemoved).
   if (slaves.contains(slaveId)) {
-    slaves[slaveId].available += resources;
+    slaves[slaveId].available += recoveredResources;
+    // Recovered reserved resources should apply also to unreserved resources.
+    foreach (const Resource& resource, resources) {
+      if (resource.has_role() && resource.role() != "*") {
+        Resource unreserved(resource);
+        unreserved.set_role("*");
+        recoveredResources += unreserved;
+      }
+    }
 
-    LOG(INFO) << "Recovered " << resources.allocatable()
+    LOG(INFO) << "Recovered " << recoveredResources.allocatable()
               << " (total allocatable: " << slaves[slaveId].available
               << ") on slave " << slaveId
               << " from framework " << frameworkId;
@@ -761,6 +796,16 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::allocate(
           // We only count resources not reserved for this role
           // in the share the sorter considers.
           allocatedResources += unreserved;
+
+          // Subtract resources for this role from unreserved resources
+          foreach (const Resource& resource, resources) {
+            if (resource.role() == role) {
+              Resource r(resource);
+              r.set_role("*");
+              slaves[slaveId].available -= r;
+              allocatedResources += r;
+            }
+          }
         }
       }
 

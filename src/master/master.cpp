@@ -2203,6 +2203,7 @@ void Master::processTasks(Offer* offer,
     allocator->resourcesUnused(offer->framework_id(),
                                offer->slave_id(),
                                unusedResources,
+                               usedResources,
                                filters);
   }
 

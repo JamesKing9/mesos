@@ -174,13 +174,6 @@ public:
 
     foreach (const Resource& resource, that.resources) {
       result += resource;
-
-      if (resource.has_role() && resource.role() != "*") {
-        Resource unreserved;
-        unreserved.MergeFrom(resource);
-        unreserved.set_role("*");
-        result += unreserved;
-      }
     }
 
     return result;
@@ -192,13 +185,6 @@ public:
 
     foreach (const Resource& resource, that.resources) {
       result -= resource;
-
-      if (resource.has_role() && resource.role() != "*") {
-        Resource unreserved;
-        unreserved.MergeFrom(resource);
-        unreserved.set_role("*");
-        result -= unreserved;
-      }
     }
 
     return result;
