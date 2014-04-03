@@ -1938,6 +1938,15 @@ struct ResourceUsageChecker : TaskInfoVisitor
     Resources offeredResources = offer->resources();
     list<Task*> tasksToKill;
 
+    // Subtract any reserved resources before doing this check
+    foreach (const Resource& resource, Resources(task.resources())) {
+      if (resource.has_role() && resource.role() != "*") {
+        Resource r(resource);
+        r.set_role("*");
+        taskResources += r;
+      }
+    }
+
     if (!((usedResources + taskResources) <= offeredResources)) {
       if (taskResources == taskResources.extract("*")) {
         // This task doesn't use reservations.
