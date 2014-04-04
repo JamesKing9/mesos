@@ -642,6 +642,15 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
 
   Resources recoveredResources = resources;
 
+  // Recovered reserved resources should apply also to unreserved resources.
+  foreach (const Resource& resource, resources) {
+    if (resource.has_role() && resource.role() != "*") {
+      Resource unreserved(resource);
+      unreserved.set_role("*");
+      recoveredResources += unreserved;
+    }
+  }
+
   // Updated resources allocated to framework (if framework still
   // exists, which it might not in the event that we dispatched
   // Master::offer before we received AllocatorProcess::frameworkRemoved
@@ -660,14 +669,6 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
   // before we received Allocator::slaveRemoved).
   if (slaves.contains(slaveId)) {
     slaves[slaveId].available += recoveredResources;
-    // Recovered reserved resources should apply also to unreserved resources.
-    foreach (const Resource& resource, resources) {
-      if (resource.has_role() && resource.role() != "*") {
-        Resource unreserved(resource);
-        unreserved.set_role("*");
-        recoveredResources += unreserved;
-      }
-    }
 
     LOG(INFO) << "Recovered " << recoveredResources.allocatable()
               << " (total allocatable: " << slaves[slaveId].available
