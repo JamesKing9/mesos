@@ -302,7 +302,7 @@ Future<Response> Slave::Http::state(const Request& request)
 
   hashmap<std::string, std::string> headers;
   headers["Access-Control-Allow-Origin"] = "*";
-  headers["Access-Control-Allow-Methods"] = "GET,PUT,POST,DELETE,OPTIONS";
+  headers["Access-Control-Allow-Methods"] = "GET";
   headers["Access-Control-Allow-Headers"] = "Content-Type";
 
   JSON::Object object;
