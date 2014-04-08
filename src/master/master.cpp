@@ -1914,7 +1914,7 @@ struct UniqueTaskIDChecker : TaskInfoVisitor
 // offered on that slave
 struct ResourceUsageChecker : TaskInfoVisitor
 {
-  ResourceUsageChecker(Master *master) : master(master) {}
+  ResourceUsageChecker(Master *master, int *launchDelay) : master(master), launchDelay(launchDelay) {}
 
   virtual TaskInfoError operator () (
       const TaskInfo& task,
@@ -2056,6 +2056,7 @@ struct ResourceUsageChecker : TaskInfoVisitor
         << " in order to free resources for task " << task.task_id()
         << " which requires " << task.resources();
       master->killTask(_task->framework_id(), _task->task_id());
+      *launchDelay = *launchDelay + 10;
     }
 
     usedResources += taskResources;
@@ -2064,6 +2065,7 @@ struct ResourceUsageChecker : TaskInfoVisitor
   }
 
   Master *master;
+  int *launchDelay;
   Resources usedResources;
   hashset<ExecutorID> executors;
 };
@@ -2151,11 +2153,13 @@ void Master::processTasks(Offer* offer,
 
   Resources usedResources; // Accumulated resources used from this offer.
 
+  int launchDelay = 0;
+
   // Create task visitors.
   list<TaskInfoVisitor*> visitors;
   visitors.push_back(new SlaveIDChecker());
   visitors.push_back(new UniqueTaskIDChecker());
-  visitors.push_back(new ResourceUsageChecker(this));
+  visitors.push_back(new ResourceUsageChecker(this, &launchDelay));
   visitors.push_back(new ExecutorInfoChecker());
   visitors.push_back(new CheckpointChecker());
 
@@ -2174,7 +2178,7 @@ void Master::processTasks(Offer* offer,
 
     if (error.isNone()) {
       // Task looks good, get it running!
-      usedResources += launchTask(task, framework, slave);
+      usedResources += launchTask(task, framework, slave, launchDelay);
     } else {
       // Error validating task, send a failed status update.
       LOG(WARNING) << "Failed to validate task " << task.task_id()
@@ -2222,7 +2226,8 @@ void Master::processTasks(Offer* offer,
 
 Resources Master::launchTask(const TaskInfo& task,
                              Framework* framework,
-                             Slave* slave)
+                             Slave* slave,
+                             const int launchDelay)
 {
   CHECK_NOTNULL(framework);
   CHECK_NOTNULL(slave);
@@ -2279,13 +2284,29 @@ Resources Master::launchTask(const TaskInfo& task,
   message.mutable_framework_id()->MergeFrom(framework->id);
   message.set_pid(framework->pid);
   message.mutable_task()->MergeFrom(task);
-  send(slave->pid, message);
+  if (launchDelay > 0) {
+    LOG(INFO) << "Task " << task.task_id()
+              << " will launch in "
+              << launchDelay << " seconds";
+    delay(Seconds(launchDelay),
+        self(),
+        &Self::sendLaunch,
+        slave->pid,
+        message);
+  } else {
+    send(slave->pid, message);
+  }
 
   stats.tasks[TASK_STAGING]++;
 
   return resources;
 }
 
+void Master::sendLaunch(
+    const process::UPID& to,
+    const RunTaskMessage &message) {
+  send(to, message);
+}
 
 // NOTE: This function is only called when the slave re-registers
 // with a master that already knows about it (i.e., not a failed
