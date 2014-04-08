@@ -27,6 +27,7 @@
 #include <process/help.hpp>
 
 #include <stout/foreach.hpp>
+#include <stout/hashmap.hpp>
 #include <stout/json.hpp>
 #include <stout/net.hpp>
 #include <stout/numify.hpp>
@@ -299,6 +300,11 @@ Future<Response> Slave::Http::state(const Request& request)
 {
   LOG(INFO) << "HTTP request for '" << request.path << "'";
 
+  hashmap<std::string, std::string> headers;
+  headers["Access-Control-Allow-Origin"] = "*";
+  headers["Access-Control-Allow-Methods"] = "GET";
+  headers["Access-Control-Allow-Headers"] = "Content-Type";
+
   JSON::Object object;
   object.values["version"] = MESOS_VERSION;
   object.values["build_date"] = build::DATE;
@@ -346,7 +352,7 @@ Future<Response> Slave::Http::state(const Request& request)
   }
   object.values["completed_frameworks"] = completedFrameworks;
 
-  return OK(object, request.query.get("jsonp"));
+  return OK(object, request.query.get("jsonp"), headers);
 }
 
 } // namespace slave {
