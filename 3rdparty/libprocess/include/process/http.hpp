@@ -176,7 +176,7 @@ struct OK : Response
     status = "200 OK";
   }
 
-  OK(const JSON::Value& value, const Option<std::string>& jsonp = None())
+  OK(const JSON::Value& value, const Option<std::string>& jsonp = None(), const Option<hashmap<std::string, std::string>>& aux_headers = None())
   {
     type = BODY;
 
@@ -195,6 +195,10 @@ struct OK : Response
       headers["Content-Type"] = "text/javascript";
     } else {
       headers["Content-Type"] = "application/json";
+    }
+
+    if (aux_headers.isSome()) {
+      headers.insert(aux_headers.begin(), aux_headers.end());
     }
 
     headers["Content-Length"] = stringify(out.str().size());
