@@ -122,6 +122,9 @@ public:
       const OfferID& offerId,
       const std::vector<TaskInfo>& tasks,
       const Filters& filters);
+  void sendLaunch(
+      const process::UPID& to,
+      const RunTaskMessage &message);
   void reviveOffers(
       const FrameworkID& frameworkId);
   void killTask(
@@ -246,7 +249,8 @@ protected:
   // resources for the task and possibly it's executor.
   Resources launchTask(const TaskInfo& task,
                        Framework* framework,
-                       Slave* slave);
+                       Slave* slave,
+                       const int launchDelay = 0);
 
   // Remove a task.
   void removeTask(Task* task);
