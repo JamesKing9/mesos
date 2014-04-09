@@ -676,7 +676,7 @@ void Master::exited(const UPID& pid)
 
         foreach (Offer* offer, utils::copy(slave->offers)) {
           allocator->resourcesRecovered(
-              offer->framework_id(), slave->id, offer->resources());
+              offer->framework_id(), slave->id, offer->resources(), false);
 
           // Remove and rescind offers.
           removeOffer(offer, true); // Rescind!
@@ -908,7 +908,8 @@ void Master::reregisterFramework(
       foreach (Offer* offer, utils::copy(framework->offers)) {
         allocator->resourcesRecovered(offer->framework_id(),
                                       offer->slave_id(),
-                                      offer->resources());
+                                      offer->resources(),
+                                      false);
         removeOffer(offer);
       }
 
@@ -1032,7 +1033,8 @@ void Master::deactivate(Framework* framework)
     allocator->resourcesRecovered(
         offer->framework_id(),
         offer->slave_id(),
-        Resources(offer->resources()));
+        Resources(offer->resources()),
+        false);
 
     removeOffer(offer);
   }
@@ -1656,7 +1658,7 @@ void Master::offer(const FrameworkID& frameworkId,
                  << " has terminated or is inactive";
 
     foreachpair (const SlaveID& slaveId, const Resources& offered, resources) {
-      allocator->resourcesRecovered(frameworkId, slaveId, offered);
+      allocator->resourcesRecovered(frameworkId, slaveId, offered, false);
     }
     return;
   }
@@ -1671,7 +1673,7 @@ void Master::offer(const FrameworkID& frameworkId,
                    << frameworkId << " because slave " << slaveId
                    << " is not valid";
 
-      allocator->resourcesRecovered(frameworkId, slaveId, offered);
+      allocator->resourcesRecovered(frameworkId, slaveId, offered, false);
       continue;
     }
 
@@ -1688,7 +1690,7 @@ void Master::offer(const FrameworkID& frameworkId,
       LOG(WARNING) << "Master returning resources offered because slave "
                    << slaveId << " is disconnected";
 
-      allocator->resourcesRecovered(frameworkId, slaveId, offered);
+      allocator->resourcesRecovered(frameworkId, slaveId, offered, false);
       continue;
     }
 
@@ -2515,7 +2517,8 @@ void Master::failoverFramework(Framework* framework, const UPID& newPid)
   foreach (Offer* offer, utils::copy(framework->offers)) {
     allocator->resourcesRecovered(offer->framework_id(),
                                   offer->slave_id(),
-                                  Resources(offer->resources()));
+                                  Resources(offer->resources()),
+                                  false);
     removeOffer(offer);
   }
 }
@@ -2555,7 +2558,8 @@ void Master::removeFramework(Framework* framework)
   foreach (Offer* offer, utils::copy(framework->offers)) {
     allocator->resourcesRecovered(offer->framework_id(),
                                   offer->slave_id(),
-                                  Resources(offer->resources()));
+                                  Resources(offer->resources()),
+                                  false);
     removeOffer(offer);
   }
 
@@ -2805,7 +2809,7 @@ void Master::removeSlave(Slave* slave)
     // TODO(vinod): We don't need to call 'Allocator::resourcesRecovered'
     // once MESOS-621 is fixed.
     allocator->resourcesRecovered(
-        offer->framework_id(), slave->id, offer->resources());
+        offer->framework_id(), slave->id, offer->resources(), false);
 
     // Remove and rescind offers.
     removeOffer(offer, true); // Rescind!

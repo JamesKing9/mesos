@@ -115,7 +115,8 @@ public:
   virtual void resourcesRecovered(
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
-      const Resources& resources) = 0;
+      const Resources& resources,
+      const bool recoverUnreserved = true) = 0;
 
   // Whenever a framework that has filtered resources wants to revive
   // offers for those resources the master invokes this callback.
@@ -188,7 +189,8 @@ public:
   void resourcesRecovered(
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
-      const Resources& resources);
+      const Resources& resources,
+      const bool recoverUnreserved = true);
 
   void offersRevived(
       const FrameworkID& frameworkId);
@@ -359,14 +361,16 @@ inline void Allocator::resourcesUnused(
 inline void Allocator::resourcesRecovered(
     const FrameworkID& frameworkId,
     const SlaveID& slaveId,
-    const Resources& resources)
+    const Resources& resources,
+    const bool recoverUnreserved)
 {
   process::dispatch(
       process,
       &AllocatorProcess::resourcesRecovered,
       frameworkId,
       slaveId,
-      resources);
+      resources,
+      recoverUnreserved);
 }
 
 
