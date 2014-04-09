@@ -168,7 +168,8 @@ public:
   void resourcesRecovered(
       const FrameworkID& frameworkId,
       const SlaveID& slaveId,
-      const Resources& resources);
+      const Resources& resources,
+      const bool recoverUnreserved = true);
 
   void offersRevived(
       const FrameworkID& frameworkId);
@@ -632,7 +633,8 @@ void
 HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
     const FrameworkID& frameworkId,
     const SlaveID& slaveId,
-    const Resources& resources)
+    const Resources& resources,
+    const bool recoverUnreserved)
 {
   CHECK(initialized);
 
@@ -642,12 +644,14 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesRecovered(
 
   Resources recoveredResources = resources;
 
-  // Recovered reserved resources should apply also to unreserved resources.
-  foreach (const Resource& resource, resources) {
-    if (resource.has_role() && resource.role() != "*") {
-      Resource unreserved(resource);
-      unreserved.set_role("*");
-      recoveredResources += unreserved;
+  if (recoverUnreserved) {
+    // Recovered reserved resources should apply also to unreserved resources.
+    foreach (const Resource& resource, resources) {
+      if (resource.has_role() && resource.role() != "*") {
+        Resource unreserved(resource);
+        unreserved.set_role("*");
+        recoveredResources += unreserved;
+      }
     }
   }
 
