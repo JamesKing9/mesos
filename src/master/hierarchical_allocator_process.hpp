@@ -581,13 +581,18 @@ HierarchicalAllocatorProcess<RoleSorter, FrameworkSorter>::resourcesUnused(
 
   // For tasks that use reserved resources, we must update the unreserved
   // resources to reflect that these resources are no longer available.
+  Resources allocatedResources;
   foreach (const Resource &resource, usedResources) {
     if (resource.has_role() && resource.role() != "*") {
       Resource r(resource);
       r.set_role("*");
       slaves[slaveId].available -= r;
+      allocatedResources += r;
     }
   }
+  sorters[role]->add(allocatedResources);
+  sorters[role]->allocated(frameworkIdValue, allocatedResources);
+  roleSorter->allocated(role, allocatedResources);
 
   // Create a refused resources filter.
   Try<Duration> seconds_ = Duration::create(Filters().refuse_seconds());
