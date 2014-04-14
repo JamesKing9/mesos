@@ -176,7 +176,7 @@ struct OK : Response
     status = "200 OK";
   }
 
-  OK(const JSON::Value& value, const Option<std::string>& jsonp = None(), const Option<hashmap<std::string, std::string>>& aux_headers = None())
+  OK(const JSON::Value& value, const Option<std::string>& jsonp = None(), const Option<hashmap<std::string, std::string> >& aux_headers = None())
   {
     type = BODY;
 
