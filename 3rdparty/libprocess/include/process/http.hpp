@@ -198,7 +198,8 @@ struct OK : Response
     }
 
     if (aux_headers.isSome()) {
-      headers.insert(aux_headers.begin(), aux_headers.end());
+      // Merge in the headers from aux_headers.
+      headers.insert(aux_headers.get().begin(), aux_headers.get().end());
     }
 
     headers["Content-Length"] = stringify(out.str().size());
