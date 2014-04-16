@@ -193,14 +193,18 @@ Future<Response> _read(int fd,
                        off_t offset,
                        const boost::shared_array<char>& data,
                        const Option<string>& jsonp) {
-  JSON::Object object;
+  hashmap<std::string, std::string> corsHeaders;
+  corsHeaders["Access-Control-Allow-Origin"] = "*";
+  corsHeaders["Access-Control-Allow-Methods"] = "GET";
+  corsHeaders["Access-Control-Allow-Headers"] = "Content-Type";
 
+  JSON::Object object;
   object.values["offset"] = offset;
   object.values["data"] = string(data.get(), size);
 
   os::close(fd);
 
-  return OK(object, jsonp);
+  return OK(object, jsonp, corsHeaders);
 }
 
 
@@ -280,10 +284,15 @@ Future<Response> FilesProcess::read(const Request& request)
   if (offset >= size) {
     os::close(fd.get());
 
+    hashmap<std::string, std::string> corsHeaders;
+    corsHeaders["Access-Control-Allow-Origin"] = "*";
+    corsHeaders["Access-Control-Allow-Methods"] = "GET";
+    corsHeaders["Access-Control-Allow-Headers"] = "Content-Type";
+
     JSON::Object object;
     object.values["offset"] = size;
     object.values["data"] = "";
-    return OK(object, request.query.get("jsonp"));
+    return OK(object, request.query.get("jsonp"), corsHeaders);
   }
 
   // Seek to the offset we want to read from.
