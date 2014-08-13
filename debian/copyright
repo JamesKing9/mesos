@@ -1,0 +1,8 @@
+Format: http://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: mesos
+Source: <url://example.com>
+
+Files: *
+Copyright: 2014
+License: Apache License, Version 2.0
+  See /usr/share/common-licenses/Apache-2.0
